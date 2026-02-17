@@ -34,81 +34,95 @@ const Bus = sequelize.define("Bus", {
 
 // BOOKINGS
 const Booking = sequelize.define("Booking", {
-  seatCount: DataTypes.INTEGER
+  seatNumber: DataTypes.INTEGER
 });
 
-// PAYMENTS
+// PAYMENTS (not used here but kept)
 const Payment = sequelize.define("Payment", {
   amount: DataTypes.FLOAT,
   status: DataTypes.STRING
 });
 
-/* ================= SAMPLE DATA INSERT ================= */
+/* ================= ASSOCIATIONS ================= */
+
+// User ↔ Booking
+User.hasMany(Booking);
+Booking.belongsTo(User);
+
+// Bus ↔ Booking
+Bus.hasMany(Booking);
+Booking.belongsTo(Bus);
+
+/* ================= SAMPLE DATA ================= */
 
 async function insertSampleData() {
   await User.bulkCreate([
     { name: "Akram", email: "akram@gmail.com" },
-    { name: "John", email: "john@gmail.com" },
-    { name: "Sara", email: "sara@gmail.com" }
+    { name: "John", email: "john@gmail.com" }
   ]);
 
   await Bus.bulkCreate([
-    { busNumber: "TS01", totalSeats: 40, availableSeats: 25 },
-    { busNumber: "TS02", totalSeats: 50, availableSeats: 8 }
+    { busNumber: "TS01", totalSeats: 40, availableSeats: 25 }
   ]);
 
   console.log("Sample data inserted");
 }
 
-/* ================= SYNC & START ================= */
+/* ================= API ENDPOINTS ================= */
 
-sequelize.sync()
+// CREATE USER
+app.post("/users", async (req, res) => {
+  const user = await User.create(req.body);
+  res.json(user);
+});
+
+// CREATE BUS
+app.post("/buses", async (req, res) => {
+  const bus = await Bus.create(req.body);
+  res.json(bus);
+});
+
+// CREATE BOOKING
+app.post("/bookings", async (req, res) => {
+  const booking = await Booking.create({
+    seatNumber: req.body.seatNumber,
+    UserId: req.body.userId,
+    BusId: req.body.busId
+  });
+
+  res.json(booking);
+});
+
+// GET BOOKINGS FOR USER
+app.get("/users/:id/bookings", async (req, res) => {
+  const bookings = await Booking.findAll({
+    where: { UserId: req.params.id },
+    include: Bus
+  });
+
+  res.json(bookings);
+});
+
+// GET BOOKINGS FOR BUS
+app.get("/buses/:id/bookings", async (req, res) => {
+  const bookings = await Booking.findAll({
+    where: { BusId: req.params.id },
+    include: User
+  });
+
+  res.json(bookings);
+});
+
+/* ================= START ================= */
+
+sequelize.sync({ alter: true })
   .then(async () => {
-    console.log("Tables created");
+    console.log("Tables synced");
 
-    await insertSampleData(); // ✅ Now runs AFTER sync
+    await insertSampleData();
 
     app.listen(3000, () => {
       console.log("Server running on port 3000");
     });
   })
   .catch(err => console.log(err));
-
-/* ================= API ENDPOINTS ================= */
-
-// POST /users
-app.post("/users", async (req, res) => {
-  try {
-    const user = await User.create(req.body);
-    res.json(user);
-  } catch (err) {
-    res.status(500).json(err);
-  }
-});
-
-// GET /users
-app.get("/users", async (req, res) => {
-  const users = await User.findAll();
-  res.json(users);
-});
-
-// POST /buses
-app.post("/buses", async (req, res) => {
-  const bus = await Bus.create(req.body);
-  res.json(bus);
-});
-
-// GET /buses/available/:seats
-app.get("/buses/available/:seats", async (req, res) => {
-  const seats = parseInt(req.params.seats);
-
-  const buses = await Bus.findAll({
-    where: {
-      availableSeats: {
-        [Op.gt]: seats
-      }
-    }
-  });
-
-  res.json(buses);
-});
